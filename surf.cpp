@@ -18,43 +18,127 @@ namespace
         return true;
     }
 }
+
 Surface makeSurfRev(const Curve &profile, unsigned steps)
 {
     Surface surface;
-    float stepSize = 2.0f * M_PI / steps;
-
-    for (unsigned i = 0; i < steps; ++i)
+    vector<Vector3f> initialVV;
+    
+    if (!checkFlat(profile))
     {
-        float theta = i * stepSize;
-        Matrix4f rotation = Matrix4f::rotateY(theta);
+        cerr << "surfRev profile curve must be flat on xy plane." << endl;
+        exit(0);
+    }
 
-        for (const CurvePoint &point : profile)
-        {
-            Vector3f position = rotation.transformPoint(point.V);
-            Vector3f normal = rotation.transformVector(point.N);
-            surface.VV.push_back(position);
-            surface.VN.push_back(normal);
+    // TODO: Here you should build the surface.  See surf.h for details.
+
+    //cerr << "\t>>> makeSurfRev called (but not implemented).\n\t>>> Returning empty surface." << endl;
+ 
+
+    for (unsigned i=0; i<profile.size(); i++){
+
+        for (unsigned j=0; j<=steps; j++){
+            float t = 2.0f * M_PI * float( j ) / steps;
+
+	    //Matrix operations used to calulate normal
+	    Matrix4f rotatM = Matrix4f::rotateY(t);
+	    Matrix3f rotatMsub = rotatM.getSubmatrix3x3(0,0);
+	    Matrix3f rotatMtrans = rotatMsub.transposed();
+	    Matrix3f rotatN = rotatMtrans.inverse();
+
+	    //Calculate surface vertex
+	    Vector4f surfaceCalc = Vector4f(profile[i].V[0], profile[i].V[1], profile[i].V[2], 1.f);
+	    Vector4f surfaceVecInit = rotatM*surfaceCalc;
+	    Vector3f surfaceVec = Vector3f(surfaceVecInit[0], surfaceVecInit[1], surfaceVecInit[2]);
+
+	    //Calculate surface normal
+	    Vector3f surfaceVNInit = rotatN*profile[i].N;
+
+	    //Push vectors into surface data
+	    surface.VV.push_back(surfaceVec);
+	    surface.VN.push_back(-1*surfaceVNInit);
+
         }
+    }
+
+    //Calculate faces once all the vertices are added
+    for (unsigned k=0; k<surface.VV.size()-(steps+1);k++){
+	Tup3u firstTri;		//faces uses a series of connected triangles
+	Tup3u secondTri;
+
+	if ((k+1)%(steps+1) != 0)	//Create triangles (considering edge conditions)
+	{
+	    //Triangles in counter-clockwise manner
+	    firstTri = Tup3u(k+1, k, k+steps+1);
+            secondTri = Tup3u(k+1, k+1+steps, k+2+steps);   
+        }
+
+	surface.VF.push_back(firstTri);
+	surface.VF.push_back(secondTri);  
     }
 
     return surface;
 }
 
-Surface makeGenCyl(const Curve &profile, const Curve &sweep)
+Surface makeGenCyl(const Curve &profile, const Curve &sweep )
 {
     Surface surface;
 
-    for (const CurvePoint &sweepPoint : sweep)
+    if (!checkFlat(profile))
     {
-        Matrix4f translation = Matrix4f::translation(sweepPoint.V);
+        cerr << "genCyl profile curve must be flat on xy plane." << endl;
+        exit(0);
+    }
 
-        for (const CurvePoint &profilePoint : profile)
-        {
-            Vector3f position = translation.transformPoint(profilePoint.V);
-            Vector3f normal = translation.transformVector(profilePoint.N);
-            surface.VV.push_back(position);
-            surface.VN.push_back(normal);
+    // TODO: Here you should build the surface.  See surf.h for details.
+
+    //cerr << "\t>>> makeGenCyl called (but not implemented).\n\t>>> Returning empty surface." <<endl;
+    
+    for (unsigned i=0; i<profile.size(); i++){
+
+        for (unsigned j=0; j<sweep.size(); j++){
+
+	    //Matrix from sweep
+            Matrix4f coordM(sweep[j].N[0], sweep[j].B[0], sweep[j].T[0], sweep[j].V[0], 
+			    sweep[j].N[1], sweep[j].B[1], sweep[j].T[1], sweep[j].V[1], 
+			    sweep[j].N[2], sweep[j].B[2], sweep[j].T[2], sweep[j].V[2], 
+			    0.f, 0.f, 0.f, 1.f);
+
+	    //Matrix operations to get normal
+	    Matrix3f rotatMsub = coordM.getSubmatrix3x3(0,0);
+	    Matrix3f rotatMtrans = rotatMsub.transposed();
+	    Matrix3f rotatN = rotatMtrans.inverse();
+
+	    //Calculate surface vertex
+	    Vector4f surfaceCalc = Vector4f(profile[i].V[0], profile[i].V[1], profile[i].V[2], 1.f);
+	    Vector4f surfaceVecInit = coordM*surfaceCalc;
+	    Vector3f surfaceVec = Vector3f(surfaceVecInit[0], surfaceVecInit[1], surfaceVecInit[2]);
+
+	    //Calculate surface normal
+	    Vector3f surfaceVNInit = rotatN*profile[i].N;
+
+	    //Push vectors into surface data
+	    surface.VV.push_back(surfaceVec);
+	    surface.VN.push_back(-1*surfaceVNInit);
         }
+    }
+
+    //Calculate faces once all the vertices are added
+    for (unsigned k=0; k<surface.VV.size()-(sweep.size());k++){
+
+	Tup3u firstTri;		//faces uses a series of connected triangles
+	Tup3u secondTri;
+
+	if ((k+1)%(sweep.size()) != 0)	//Create triangles (considering edge conditions)
+	{
+	    //Triangles in counter-clockwise manner
+	    firstTri = Tup3u(k+1, k, k+sweep.size());
+            secondTri = Tup3u(k+1, k+sweep.size(), k+1+sweep.size());   
+        }
+
+	surface.VF.push_back(firstTri);
+	surface.VF.push_back(secondTri);
+            
     }
 
     return surface;
