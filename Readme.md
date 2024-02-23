@@ -24,6 +24,6 @@ Same like given solution pass the swap file
 ![RedSphereLight](./cortex_sim.png)
 
 - Second artifact, got this from same reddit thread - its a chess piece.
-![](./chess_image.png)
+![](./chess_sim_image.png)
 
 
