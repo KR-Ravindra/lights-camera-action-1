@@ -19,102 +19,326 @@ namespace
     
 }
     
-Curve evalBezier(const vector< Vector3f >& P, unsigned steps) {
+
+Curve evalBezier( const vector< Vector3f >& P, unsigned steps )
+{
     // Check
-    if (P.size() < 4 || P.size() % 3 != 1) {
+    if( P.size() < 4 || P.size() % 3 != 1 )
+    {
         cerr << "evalBezier must be called with 3n+1 control points." << endl;
-        exit(0);
+        exit( 0 );
     }
 
-    // Create the curve
-    Curve curve;
+    // TODO:
+    // You should implement this function so that it returns a Curve
+    // (e.g., a vector< CurvePoint >).  The variable "steps" tells you
+    // the number of points to generate on each piece of the spline.
+    // At least, that's how the sample solution is implemented and how
+    // the SWP files are written.  But you are free to interpret this
+    // variable however you want, so long as you can control the
+    // "resolution" of the discretized spline curve with it.
 
-    // Initialize the previous tangent
-    Vector3f prevT;
+    // Make sure that this function computes all the appropriate
+    // Vector3fs for each CurvePoint: V,T,N,B.
+    // [NBT] should be unit and orthogonal.
 
-    // For each segment
-    for (unsigned i = 0; i <= P.size() - 4; i += 3) {
-        // For each step
-        for (unsigned step = 0; step <= steps; ++step) {
-            float t = float(step) / steps;
+    // Also note that you may assume that all Bezier curves that you
+    // receive have G1 continuity.  Otherwise, the TNB will not be
+    // be defined at points where this does not hold.
 
-            // Calculate the position
-            Vector3f V = pow(1 - t, 3) * P[i]
-                        + 3 * pow(1 - t, 2) * t * P[i + 1]
-                        + 3 * (1 - t) * pow(t, 2) * P[i + 2]
-                        + pow(t, 3) * P[i + 3];
+    cerr << "\t>>> evalBezier has been called with the following input:" << endl;
 
-            // Calculate the tangent
-            Vector3f T = -3 * pow(1 - t, 2) * P[i]
-                        + (3 * pow(1 - t, 2) - 6 * t * (1 - t)) * P[i + 1]
-                        + (6 * t * (1 - t) - 3 * pow(t, 2)) * P[i + 2]
-                        + 3 * pow(t, 2) * P[i + 3];
-            T.normalize();
+    cerr << "\t>>> Control points (type vector< Vector3f >): "<< endl;
+    for( unsigned i = 0; i < P.size(); ++i )
+    {
+        cerr << "\t>>> " << P[i] << endl;
+    }
 
-            // Calculate the normal and binormal
-            Vector3f N;
-            Vector3f B;
-            if (step == 0) {
-                // Use the derivative of the tangent to calculate the normal
-                Vector3f dT = 6 * (1 - t) * P[i]
-                            - 6 * (1 - 2 * t) * P[i + 1]
-                            + 6 * (2 * t - 1) * P[i + 2]
-                            + 6 * t * P[i + 3];
-                N = Vector3f::cross(T, dT);
-                B = Vector3f::cross(T, N);
-                prevT = T;
-            } else {
-                N = Vector3f::cross(prevT, T);
-                B = Vector3f::cross(T, N);
-                prevT = T;
-            }
-            N.normalize();
-            B.normalize();
+    cerr << "\t>>> Steps (type steps): " << steps << endl;
+    //cerr << "\t>>> Returning empty curve." << endl;
 
-            // Add the point to the curve
-            curve.push_back(CurvePoint{V, T, N, B});
+    int seg;			//Determine number of segments if 4 or 
+				//more control points
+    if (P.size() == 4){
+        seg = 1;
+    }
+    else{
+        seg = ((P.size()-1)/3);
+    }
+
+    Curve R((seg)*(steps)+1);
+
+    Vector3f Binit;		//Initial Binormal (arbitrary only at beginning)
+    Vector3f Blast;		//Most recent Binormal
+
+    bool beginning = true;
+
+    for(unsigned i = 0; i < P.size()-3; i+=3 )
+    {
+	if (beginning)
+	{
+	    Binit = Vector3f(0.f, 0.f, 1.f);
+        }
+        else
+        {
+            Binit = Blast;
+        }
+
+        for(unsigned delta = 0; delta <= steps; ++delta)
+        {
+            float t = float(delta) / steps;
+
+	    //Point Matrix
+	    Matrix4f relativePoints(P[i+0][0], P[i+1][0], P[i+2][0], P[i+3][0], 
+				    P[i+0][1], P[i+1][1], P[i+2][1], P[i+3][1], 
+				    P[i+0][2], P[i+1][2], P[i+2][2], P[i+3][2], 
+				    0.f, 0.f, 0.f, 0.f);
+	    //V Matrix
+	    Matrix4f MatV(1.f, -3.f, 3.f, -1.f, 
+			  0.f, 3.f, -6.f, 3.f, 
+			  0.f, 0.f, 3.f , -3.f, 
+			  0.f, 0.f, 0.f, 1.f);
+	    //T Matrix
+	    Matrix4f MatT(-3.f, 6.f, -3.f, 0.f, 
+			  3.f, -12.f, 9.f, 0.f, 
+			  0.f, 6.f, -9.f , 0.f, 
+			  0.f, 0.f, 3.f, 0.f);
+
+	    //polynomial (t) Matrix
+	    Vector4f timeT(1, t, t*t, t*t*t);   
+	    
+	    //Calculate V Vector
+	    R[(i*steps) + delta].V = Vector3f((relativePoints * MatV * timeT)[0], 
+					       (relativePoints * MatV * timeT)[1],
+					       (relativePoints * MatV * timeT)[2]);
+            //Calculate Tangent
+	    R[(i*steps) + delta].T = Vector3f((relativePoints * MatT * timeT)[0], 
+					       (relativePoints * MatT * timeT)[1],
+					       (relativePoints * MatT * timeT)[2]).normalized();
+	    //Calculate Normal
+	    R[(i*steps) + delta].N = Vector3f::cross(Binit, 
+						     R[(i*steps) + delta].T).normalized();
+	    //Calulate Binormal
+	    R[(i*steps) + delta].B = Vector3f::cross(R[(i*steps) + delta].T, 
+						     R[(i*steps) + delta].N).normalized();
+	    //Keep track of current Binormal
+	    Binit = R[(i*steps) + delta].B;
+
+            beginning = false;
+            Blast = Binit;    
         }
     }
-
-    return curve;
+              
+    // Right now this will just return this empty curve.
+    //return Curve();
+    return R;
 }
 
-Curve evalBspline(const vector< Vector3f >& P, unsigned steps) {
+Curve evalBspline( const vector< Vector3f >& P, unsigned steps )
+{
     // Check
-    if (P.size() < 4) {
+    if( P.size() < 4 )
+    {
         cerr << "evalBspline must be called with 4 or more control points." << endl;
-        exit(0);
+        exit( 0 );
     }
 
-    // Create the curve
-    Curve curve;
+    // TODO:
+    // It is suggested that you implement this function by changing
+    // basis from B-spline to Bezier.  That way, you can just call
+    // your evalBezier function.
 
-    // Define the B-spline to Bezier matrix
-    Matrix4f bsplineToBezier;
-    bsplineToBezier(0, 0) = -1/6.0; bsplineToBezier(0, 1) = 3/6.0; bsplineToBezier(0, 2) = -3/6.0; bsplineToBezier(0, 3) = 1/6.0;
-    bsplineToBezier(1, 0) = 3/6.0; bsplineToBezier(1, 1) = -6/6.0; bsplineToBezier(1, 2) = 3/6.0; bsplineToBezier(1, 3) = 0;
-    bsplineToBezier(2, 0) = -3/6.0; bsplineToBezier(2, 1) = 3/6.0; bsplineToBezier(2, 2) = 0; bsplineToBezier(2, 3) = 0;
-    bsplineToBezier(3, 0) = 1/6.0; bsplineToBezier(3, 1) = 0; bsplineToBezier(3, 2) = 0; bsplineToBezier(3, 3) = 0;
+    cerr << "\t>>> evalBSpline has been called with the following input:" << endl;
 
-    // For each segment
-    for (unsigned i = 0; i <= P.size() - 4; ++i) {
-        // Convert the control points to Bezier basis
-        vector<Vector3f> bezierControlPoints;
-        for (unsigned j = 0; j < 4; ++j) {
-            Vector4f controlPoint(P[i + j], 1);
-            Vector4f bezierControlPoint = bsplineToBezier * controlPoint;
-            bezierControlPoints.push_back(Vector3f(bezierControlPoint[0], bezierControlPoint[1], bezierControlPoint[2]));
+    cerr << "\t>>> Control points (type vector< Vector3f >): "<< endl;
+    for( unsigned i = 0; i < P.size(); ++i )
+    {
+        cerr << "\t>>> " << P[i] << endl;
+    }
+
+    cerr << "\t>>> Steps (type steps): " << steps << endl;
+    //cerr << "\t>>> Returning empty curve." << endl;
+
+    int seg;			//Determine number of segments if 4 or 
+				//more control points
+    if (P.size() == 4){
+        seg = 1;
+    }
+    else{
+        seg = (P.size()-3);
+    }
+
+    Curve R((seg)*(steps)+1);
+
+    Vector3f Binit;		//Initial Binormal (arbitrary only at beginning)
+    Vector3f Blast;		//Most recent Binormal
+
+    bool beginning = true;
+
+    for(unsigned i = 0; i < P.size()-3; ++i )
+    {
+	if (beginning){
+	    Binit = Vector3f(0.f, 0.f, 1.f);
         }
+	else{
+	    Binit = Blast;
+        }   
 
-        // Evaluate the Bezier curve
-        Curve bezierCurve = evalBezier(bezierControlPoints, steps);
+        for(unsigned delta = 0; delta <= steps; ++delta)
+        {
+            float t = float(delta) / steps;
 
-        // Add the points to the curve
-        curve.insert(curve.end(), bezierCurve.begin(), bezierCurve.end());
+	    //Point Matrix
+	    Matrix4f relativePoints(P[i+0][0], P[i+1][0], P[i+2][0], P[i+3][0], 
+				    P[i+0][1], P[i+1][1], P[i+2][1], P[i+3][1], 
+				    P[i+0][2], P[i+1][2], P[i+2][2], P[i+3][2], 
+				    0.f, 0.f, 0.f, 0.f);
+	    //V Matrix
+	    Matrix4f MatV(1.f/6, -3.f/6, 3.f/6 , -1.f/6, 
+			  4.f/6, 0.f   , -6.f/6, 3.f/6, 
+			  1.f/6, 3.f/6 , 3.f/6 , -3.f/6, 
+			  0.f  , 0.f   , 0.f   , 1.f/6);
+	    //T Matrix
+	    Matrix4f MatT(-3.f/6, 6.f/6  , -3.f/6, 0.f/6, 
+			   0.f/6, -12.f/6, 9.f/6 , 0.f/6,
+			   3.f/6, 6.f/6  , -9.f/6, 0.f/6, 
+			   0.f  , 0.f    , 0.f   , 3.f/6);
+
+	    //polynomial (t) Matrix
+	    Vector4f timeT(1, t, t*t, t*t*t);   
+
+	    //Calculate V Vector
+	    R[(i*steps) + delta].V = Vector3f((relativePoints * MatV * timeT)[0], 
+					       (relativePoints * MatV * timeT)[1],
+					       (relativePoints * MatV * timeT)[2]);
+            //Calculate Tangent
+	    R[(i*steps) + delta].T = Vector3f((relativePoints * MatT * timeT)[0], 
+					       (relativePoints * MatT * timeT)[1],
+					       (relativePoints * MatT * timeT)[2]).normalized();
+	    //Calculate Normal
+	    R[(i*steps) + delta].N = Vector3f::cross(Binit, 
+						     R[(i*steps) + delta].T).normalized();
+	    //Calulate Binormal
+	    R[(i*steps) + delta].B = Vector3f::cross(R[(i*steps) + delta].T, 
+						     R[(i*steps) + delta].N).normalized();
+	    //Keep track of current Binormal
+	    Binit = R[(i*steps) + delta].B;
+
+	    beginning = false;
+            Blast = Binit;
+        }
     }
 
-    return curve;
+    // Return an empty curve right now.
+    //return Curve();
+    return R;
 }
+
+//====================================================================================
+//EXTRA CREDIT
+//====================================================================================
+
+Curve evalCatMullRom( const vector< Vector3f >& P, unsigned steps )
+{
+    // Check
+    if( P.size() < 4 )
+    {
+        cerr << "evalCatMullRom must be called with 4 or more control points." << endl;
+        exit( 0 );
+    }
+
+    // TODO:
+    // Implement CatMull Rom splines that connect lines through the control points
+
+    cerr << "\t>>> evalCatMullRom has been called with the following input:" << endl;
+
+    cerr << "\t>>> Control points (type vector< Vector3f >): "<< endl;
+    for( unsigned i = 0; i < P.size(); ++i )
+    {
+        cerr << "\t>>> " << P[i] << endl;
+    }
+
+    cerr << "\t>>> Steps (type steps): " << steps << endl;
+    //cerr << "\t>>> Returning empty curve." << endl;
+
+    int seg;			//Determine number of segments if 4 or 
+				//more control points
+    if (P.size() == 4){
+        seg = 1;
+    }
+    else{
+        seg = (P.size()-3);
+    }
+
+    Curve R((seg)*(steps)+1);
+
+    Vector3f Binit;		//Initial Binormal (arbitrary only at beginning)
+    Vector3f Blast;		//Most recent Binormal
+
+    bool beginning = true;
+
+    for(unsigned i = 0; i < P.size()-3; ++i )
+    {
+	if (beginning){
+	    Binit = Vector3f(0.f, 0.f, 1.f);
+        }
+	else{
+	    Binit = Blast;
+        }   
+
+        for(unsigned delta = 0; delta <= steps; ++delta)
+        {
+            float t = float(delta) / steps;
+
+	    //Point Matrix
+	    Matrix4f relativePoints(P[i+0][0], P[i+1][0], P[i+2][0], P[i+3][0], 
+				    P[i+0][1], P[i+1][1], P[i+2][1], P[i+3][1], 
+				    P[i+0][2], P[i+1][2], P[i+2][2], P[i+3][2], 
+				    0.f, 0.f, 0.f, 0.f);
+	    //V Matrix
+	    Matrix4f MatV(0.f/2, -1.f/2, 2.f/2 , -1.f/2, 
+			  2.f/2, 0.f   , -5.f/2, 3.f/2, 
+			  0.f/2, 1.f/2 , 4.f/2 , -3.f/2, 
+			  0.f  , 0.f   , -1.f/2, 1.f/2);
+	    //T Matrix
+	    Matrix4f MatT(-1.f/2, 4.f/2  , -3.f/2, 0.f/2, 
+			   0.f/2, -10.f/2, 9.f/2 , 0.f/2,
+			   1.f/2, 8.f/2  , -9.f/2, 0.f/2, 
+			   0.f  , -2.f/2 , 3.f/2 , 0.f/2);
+
+	    //polynomial (t) Matrix
+	    Vector4f timeT(1, t, t*t, t*t*t);   
+
+	    //Calculate V Vector
+	    R[(i*steps) + delta].V = Vector3f((relativePoints * MatV * timeT)[0], 
+					       (relativePoints * MatV * timeT)[1],
+					       (relativePoints * MatV * timeT)[2]);
+            //Calculate Tangent
+	    R[(i*steps) + delta].T = Vector3f((relativePoints * MatT * timeT)[0], 
+					       (relativePoints * MatT * timeT)[1],
+					       (relativePoints * MatT * timeT)[2]).normalized();
+	    //Calculate Normal
+	    R[(i*steps) + delta].N = Vector3f::cross(Binit, 
+						     R[(i*steps) + delta].T).normalized();
+	    //Calulate Binormal
+	    R[(i*steps) + delta].B = Vector3f::cross(R[(i*steps) + delta].T, 
+						     R[(i*steps) + delta].N).normalized();
+	    //Keep track of current Binormal
+	    Binit = R[(i*steps) + delta].B;
+
+	    beginning = false;
+            Blast = Binit;
+        }
+    }
+
+    // Return an empty curve right now.
+    //return Curve();
+    return R;
+}
+
+//====================================================================================
+//====================================================================================
+
 Curve evalCircle( float radius, unsigned steps )
 {
     // This is a sample function on how to properly initialize a Curve
@@ -193,4 +417,3 @@ void drawCurve( const Curve& curve, float framesize )
     // Pop state
     glPopAttrib();
 }
-
