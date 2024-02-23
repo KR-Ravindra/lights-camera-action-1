@@ -21,7 +21,7 @@ Same like given solution pass the swap file
 ## Screenshots:
 
 - First artifact, got this online from reddit forum - I call it vortex
-![RedSphereLight](./cortex_sim.png)
+![](./vortex_sim.png)
 
 - Second artifact, got this from same reddit thread - its a chess piece.
 ![](./chess_sim_image.png)
