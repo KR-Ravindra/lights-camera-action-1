@@ -444,7 +444,7 @@ int main( int argc, char* argv[] )
     camera.SetDistance(10);
     camera.SetCenter(Vector3f(0,0,0));
     
-    glutCreateWindow("Assignment 1");
+    glutCreateWindow("Raja Ravindra Kathi:Assignment 1");
 
     // Initialize OpenGL parameters.
     initRendering();
